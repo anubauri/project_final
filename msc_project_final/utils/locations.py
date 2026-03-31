@@ -1,4 +1,5 @@
 # Updated Mumbai Zone Coordinates
+# Essential for Folium Map markers and DBSCAN clustering
 MUMBAI_ZONE_COORDS = {
     "Colaba": (18.9067, 72.8147),
     "Nariman Point": (18.9256, 72.8232),
@@ -38,9 +39,10 @@ MUMBAI_ZONE_COORDS = {
     "Navi Mumbai": (19.0330, 73.0297)
 }
 
+# Mumbai Geo-Center for initializing Folium Maps
 DEFAULT_CITY_CENTER = (19.0760, 72.8777)
 
-# Mapping aliases to the official keys in MUMBAI_ZONE_COORDS
+# Mapping common user inputs to official dictionary keys
 ZONE_ALIASES = {
     "bkc": "Bandra",
     "bandra kurla complex": "Bandra",
@@ -50,49 +52,51 @@ ZONE_ALIASES = {
     "bombay central": "Mumbai Central",
     "new panvel": "Panvel",
     "vashi": "Navi Mumbai",
-    "cbd belapur": "Navi Mumbai"
+    "cbd belapur": "Navi Mumbai",
+    "juhu": "Vile Parle"
 }
 
 def normalize_zone_name(zone_name):
     """
     Cleans zone names and maps aliases for consistent lookups.
+    Essential for matching CSV data with the coordinate dictionary.
     """
-    if zone_name is None or str(zone_name).lower() == 'nan':
+    if zone_name is None or str(zone_name).lower() in ['nan', 'none', '']:
         return "Unknown"
     
-    # Standardize to title case for lookup (e.g., "bandra " -> "Bandra")
-    z = str(zone_name).strip()
-    z_lower = z.lower()
+    # Standardize input
+    z_clean = str(zone_name).strip()
+    z_lower = z_clean.lower()
     
-    # Check alias dictionary first (using lowercase key)
+    # 1. Check alias dictionary first
     if z_lower in ZONE_ALIASES:
         return ZONE_ALIASES[z_lower]
     
-    # Return original string formatted correctly if it matches a key
-    for key in MUMBAI_ZONE_COORDS.keys():
-        if key.lower() == z_lower:
-            return key
+    # 2. Check for case-insensitive match in primary dictionary
+    for official_key in MUMBAI_ZONE_COORDS.keys():
+        if official_key.lower() == z_lower:
+            return official_key
             
-    return z # Return as-is if no match found (get_zone_coords will handle it)
+    # 3. Return the cleaned original if no match (will fallback to center in get_zone_coords)
+    return z_clean
 
 def get_zone_coords(zone_name):
     """
     Retrieves (latitude, longitude) for a zone.
-    Returns DEFAULT_CITY_CENTER if the zone is not found to prevent UI crashes.
+    Guaranteed to return a tuple to prevent 'NoneType' map crashes.
     """
     z = normalize_zone_name(zone_name)
     coords = MUMBAI_ZONE_COORDS.get(z)
     
+    # If key doesn't exist, return city center so the map still renders
     if coords is None:
-        # Final fallback: case-insensitive search in primary dictionary
-        z_lower = str(z).lower()
-        for key, val in MUMBAI_ZONE_COORDS.items():
-            if key.lower() == z_lower:
-                return val
         return DEFAULT_CITY_CENTER
         
     return coords
 
 def get_all_zones():
-    """Returns a sorted list of official zone names for Streamlit dropdowns."""
-    return sorted(MUMBAI_ZONE_COORDS.keys())
+    """
+    Returns a sorted list of official zone names.
+    Used for st.selectbox dropdowns in the Streamlit UI.
+    """
+    return sorted(list(MUMBAI_ZONE_COORDS.keys()))
