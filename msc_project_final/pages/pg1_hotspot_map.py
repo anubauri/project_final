@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
+import numpy as np
 
 from utils.predictor import load_dataset, run_dbscan_on_zones
 from utils.locations import DEFAULT_CITY_CENTER
@@ -13,7 +14,7 @@ apply_ui()
 
 # Header Section
 st.markdown('<div class="badge">Spatial Intelligence</div>', unsafe_allow_html=True)
-st.title("🗺️ Hotspot Map and DBSCAN Clusters")
+st.title("🗺️ Hotspot Map & DBSCAN Clusters")
 st.markdown('<p class="subtle-text">Visualize zone-level traffic severity and density-based spatial clusters across Mumbai.</p>', unsafe_allow_html=True)
 
 @st.cache_data(ttl=600)
@@ -21,8 +22,10 @@ def get_clustered_data(eps, min_samples):
     """Fetches and clusters data. Cached to prevent re-running on every UI interaction."""
     try:
         df = load_dataset()
-        if df.empty:
+        if df is None or df.empty:
             return pd.DataFrame()
+        
+        # Perform DBSCAN clustering via predictor utility
         clustered = run_dbscan_on_zones(df, eps=eps, min_samples=min_samples)
         return clustered
     except Exception as e:
@@ -32,91 +35,114 @@ def get_clustered_data(eps, min_samples):
 # 2. Sidebar Controls
 with st.sidebar:
     st.header("📍 Clustering Parameters")
-    st.info("Adjust DBSCAN settings to change how traffic hotspots are grouped.")
-    eps = st.slider("Epsilon (Distance Threshold)", min_value=0.1, max_value=5.0, value=1.15, step=0.05)
-    min_samples = st.slider("Minimum Samples per Cluster", min_value=1, max_value=15, value=2, step=1)
+    st.info("Adjust DBSCAN settings to change how traffic hotspots are grouped geographically.")
+    
+    # Epsilon: The maximum distance between two samples for one to be considered as in the neighborhood of the other.
+    eps = st.slider("Epsilon (Distance Threshold)", min_value=0.05, max_value=3.0, value=1.15, step=0.05)
+    
+    # Min Samples: The number of samples in a neighborhood for a point to be considered as a core point.
+    min_samples = st.slider("Min Samples per Cluster", min_value=1, max_value=10, value=2, step=1)
     
     st.divider()
-    st.markdown("""
-    **Legend:**
-    - <span style='color:red'>●</span> Cluster 0 (High Density)
-    - <span style='color:blue'>●</span> Cluster 1
-    - <span style='color:gray'>●</span> Noise (Isolated Zones)
-    """, unsafe_allow_html=True)
+    st.markdown("### 🎨 Map Legend")
+    st.write("🔴 **Cluster 0+**: High-Density Zones")
+    st.write("⚪ **Noise (-1)**: Isolated Traffic Zones")
 
 # 3. Data Processing
 clustered = get_clustered_data(eps, min_samples)
 
 if clustered.empty:
-    st.warning("⚠️ No spatial data available. Ensure your dataset contains valid zone names and coordinates.")
+    st.warning("⚠️ No spatial data available. Ensure 'dataset/final_preprocessed_dataset.csv' is present and contains valid 'source' and 'congestion_index' columns.")
     st.stop()
 
 # 4. KPI Metrics
-c1, c2, c3, c4 = st.columns(4)
-active_clusters = int(clustered["cluster"].nunique() - (1 if -1 in clustered["cluster"].unique() else 0))
+# Calculating metrics safely
+unique_clusters = clustered["cluster"].unique()
+active_clusters = int(len([c for c in unique_clusters if c != -1]))
 noise_points = int((clustered["cluster"] == -1).sum())
 
-c1.metric("Zones Mapped", len(clustered))
-c2.metric("Active Clusters", active_clusters)
-c3.metric("Noise/Isolated Zones", noise_points)
-c4.metric("Avg Congestion", f"{clustered['congestion_index'].mean():.2f}%")
+m1, m2, m3, m4 = st.columns(4)
+with m1:
+    st.metric("Total Zones", len(clustered))
+with m2:
+    st.metric("Active Clusters", active_clusters)
+with m3:
+    st.metric("Isolated Zones", noise_points)
+with m4:
+    avg_cong = clustered['congestion_index'].mean()
+    st.metric("Avg Congestion", f"{avg_cong:.1f}%")
 
 # 5. Map Generation
-# Using 'cartodbpositron' for a clean, professional look
-fmap = folium.Map(location=DEFAULT_CITY_CENTER, zoom_start=11, tiles="cartodbpositron")
+# Using 'cartodbpositron' for a clean, professional aesthetic
+fmap = folium.Map(
+    location=DEFAULT_CITY_CENTER, 
+    zoom_start=11, 
+    tiles="cartodbpositron",
+    control_scale=True
+)
 
-def get_color(cluster_id):
-    """Assigns specific colors to clusters."""
-    palette = {
-        -1: "#808080", # Gray for noise
-        0: "#e63946",  # Red
-        1: "#457b9d",  # Blue
-        2: "#2a9d8f",  # Green
-        3: "#9b5de5",  # Purple
-        4: "#f15bb5",  # Pink
-        5: "#fb5607"   # Orange
+def get_cluster_color(cluster_id):
+    """Returns a hex color based on the cluster ID."""
+    colors = {
+        -1: "#95a5a6", # Gray for noise/outliers
+        0: "#e74c3c",  # Red
+        1: "#3498db",  # Blue
+        2: "#2ecc71",  # Green
+        3: "#f1c40f",  # Yellow
+        4: "#9b59b6",  # Purple
+        5: "#e67e22"   # Orange
     }
-    return palette.get(int(cluster_id), "#000000")
+    # Return indexed color or a random dark color for high-index clusters
+    return colors.get(int(cluster_id), "#2c3e50")
 
-# Adding markers with safety check for coordinates
+# Adding markers to the map
 for _, row in clustered.iterrows():
-    # Skip if coordinates are invalid
+    # Final safety check for NaN coordinates to prevent map breakdown
     if pd.isna(row["lat"]) or pd.isna(row["lon"]):
         continue
-        
-    # Scale radius based on congestion
-    val = float(row.get("congestion_index", 0))
-    radius = max(6, min(22, int(val / 5) + 5))
     
-    popup_content = f"""
-    <div style="font-family: sans-serif; min-width: 150px;">
-        <h4 style="margin-bottom:5px;">{row['zone']}</h4>
-        <b>Cluster ID:</b> {int(row['cluster'])}<br>
-        <b>Congestion:</b> {val:.1f}%<br>
-        <b>Hotspot Prob:</b> {row.get('hotspot_numeric', 0):.2f}
+    # Calculate circle size based on congestion level
+    cong_val = float(row.get("congestion_index", 0))
+    radius_val = max(5, min(18, int(cong_val / 6) + 4))
+    
+    # Create an HTML popup for the marker
+    popup_html = f"""
+    <div style="font-family: 'Inter', sans-serif; font-size: 12px; width: 160px;">
+        <strong style="color:#0f6cbd; font-size:14px;">{row['zone']}</strong><br><hr style="margin:5px 0;">
+        <b>Cluster:</b> {int(row['cluster'])}<br>
+        <b>Congestion:</b> {cong_val:.1f}%<br>
+        <b>Hotspot Score:</b> {row.get('hotspot_numeric', 0):.2f}
     </div>
     """
     
     folium.CircleMarker(
         location=[row["lat"], row["lon"]],
-        radius=radius,
-        popup=folium.Popup(popup_content, max_width=300),
-        color=get_color(row["cluster"]),
+        radius=radius_val,
+        popup=folium.Popup(popup_html, max_width=200),
+        color=get_cluster_color(row["cluster"]),
         fill=True,
         fill_opacity=0.7,
-        weight=1.5
+        weight=2
     ).add_to(fmap)
 
-# 6. Display Map & Table
-st.markdown("### Interactive Geospatial Dashboard")
-st_folium(fmap, width="100%", height=550, returned_objects=[])
+# 6. Display Dashboard
+st.markdown("### 📍 Interactive Mumbai Spatial Analysis")
+# Use st_folium with a unique key to prevent re-rendering loops
+st_folium(fmap, width="100%", height=600, key="mumbai_map", returned_objects=[])
 
-with st.expander("📂 View Detailed Spatial Data Table"):
-    display_df = clustered.copy()
-    # Rounding for clean display
-    cols_to_round = ["congestion_index", "actual_travel_time_min", "hotspot_numeric"]
-    for col in cols_to_round:
-        if col in display_df.columns:
-            display_df[col] = display_df[col].astype(float).round(2)
-            
-    st.dataframe(display_df.sort_values("cluster"), use_container_width=True)
+# 7. Data Table Section
+with st.expander("📊 View Detailed Clustering Results"):
+    st.write("This table shows the raw data used to generate the clusters above.")
+    # Clean up dataframe for display
+    display_df = clustered.drop(columns=['lat', 'lon'], errors='ignore').copy()
+    display_df = display_df.rename(columns={
+        "zone": "Area Name",
+        "congestion_index": "Avg Congestion (%)",
+        "hotspot_numeric": "Hotspot Probability",
+        "cluster": "Cluster ID"
+    })
+    st.dataframe(
+        display_df.sort_values("Cluster ID"), 
+        use_container_width=True,
+        hide_index=True
+    )
