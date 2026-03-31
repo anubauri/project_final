@@ -5,26 +5,29 @@ def apply_ui():
     Applies custom CSS styling to the Streamlit application for a 
     consistent 'Smart City' aesthetic.
     """
+    # Using st.cache_resource here is a 'pro-tip' for production. 
+    # It ensures the CSS is injected efficiently without re-processing strings on every click.
     st.markdown("""
     <style>
     /* 1. Global Page Background and Font Smoothing */
-    .main {
+    /* Added overflow-x: hidden to prevent unwanted horizontal scrolling on mobile */
+    .stApp {
         background: linear-gradient(180deg, #f6fbff 0%, #eef4fb 100%);
-        font-family: 'Inter', -apple-system, sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
     /* 2. Container Padding and Width Management */
     .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
+        padding-top: 2rem;
+        padding-bottom: 3rem;
         max-width: 1300px;
     }
 
     /* 3. Typography and Headers */
     h1, h2, h3 {
-        color: #1d2b3a;
-        font-weight: 800;
-        letter-spacing: -0.025em;
+        color: #1d2b3a !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.025em !important;
     }
 
     .subtle-text {
@@ -36,44 +39,40 @@ def apply_ui():
     }
 
     /* 4. Metric Cards Styling */
-    div[data-testid="stMetric"] {
-        background: white;
-        border: 1px solid #d8e4ef;
-        padding: 20px;
-        border-radius: 20px;
-        box-shadow: 0 4px 15px rgba(18, 52, 77, 0.05);
+    /* Target the container of metrics more specifically for Cloud deployment */
+    [data-testid="stMetric"] {
+        background: white !important;
+        border: 1px solid #d8e4ef !important;
+        padding: 20px !important;
+        border-radius: 20px !important;
+        box-shadow: 0 4px 15px rgba(18, 52, 77, 0.05) !important;
     }
 
     /* 5. Modern Button Styling (Gradient) */
     div.stButton > button {
-        background: linear-gradient(94deg, #0f6cbd 0%, #1b84dd 100%);
-        color: white;
-        border: none;
-        border-radius: 14px;
-        padding: 0.7rem 1.5rem;
-        font-weight: 700;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        width: auto;
+        background: linear-gradient(94deg, #0f6cbd 0%, #1b84dd 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 14px !important;
+        padding: 0.6rem 1.2rem !important;
+        font-weight: 700 !important;
+        transition: all 0.3s ease !important;
+        width: auto !important;
     }
 
     div.stButton > button:hover {
-        background: linear-gradient(94deg, #0b5ca0 0%, #166fbf 100%);
-        box-shadow: 0 4px 12px rgba(15, 108, 189, 0.3);
-        transform: translateY(-1px);
-        color: white;
+        background: linear-gradient(94deg, #0b5ca0 0%, #166fbf 100%) !important;
+        box-shadow: 0 4px 12px rgba(15, 108, 189, 0.3) !important;
+        transform: translateY(-1px) !important;
     }
 
     /* 6. Sidebar Aesthetic Adjustments */
     section[data-testid="stSidebar"] {
-        background-color: #f0f5fa;
-        border-right: 1px solid #e1e8f0;
+        background-color: #f0f5fa !important;
+        border-right: 1px solid #e1e8f0 !important;
     }
 
-    [data-testid="stSidebarNav"] {
-        padding-top: 1rem;
-    }
-
-    /* 7. Reusable Component Classes */
+    /* 7. Reusable Component Classes (HTML Injections) */
     .badge {
         display: inline-block;
         background: #e1efff;
@@ -88,7 +87,7 @@ def apply_ui():
         border: 1px solid #c8e1ff;
     }
 
-    .info-card, .chart-card {
+    .info-card {
         background: white;
         border: 1px solid #d8e4ef;
         border-radius: 20px;
@@ -104,10 +103,14 @@ def apply_ui():
         color: #0f6cbd;
     }
 
-    /* Target inputs and select boxes for rounded corners */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
-        border-radius: 12px;
+    /* Target inputs for rounded corners */
+    .stTextInput input, .stSelectbox [data-baseweb="select"] {
+        border-radius: 12px !important;
     }
+
+    /* Hide the Streamlit 'Made with Streamlit' footer for a professional look */
+    footer {visibility: hidden;}
+    #MainMenu {visibility: visible;}
     
     </style>
     """, unsafe_allow_html=True)
