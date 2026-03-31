@@ -2,11 +2,14 @@ import os
 import streamlit as st
 from utils.ui import apply_ui
 
-# 1. Setup Base Directory and Paths
-BASE_DIR = "/content/smart_city_app"
-DATASET_PATH = f"{BASE_DIR}/dataset/final_preprocessed_dataset.csv"
-MODEL_PATH = f"{BASE_DIR}/model/final_random_forest_model.pkl"
-METRICS_PATH = f"{BASE_DIR}/model/metrics.pkl"
+# 1. Setup DYNAMIC Base Directory and Paths
+# This finds the directory where app.py is located automatically
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Define paths relative to the project root
+DATASET_PATH = os.path.join(BASE_DIR, "dataset", "final_preprocessed_dataset.csv")
+MODEL_PATH = os.path.join(BASE_DIR, "model", "final_random_forest_model.pkl")
+METRICS_PATH = os.path.join(BASE_DIR, "model", "metrics.pkl")
 
 # 2. Page Configuration
 st.set_page_config(
@@ -17,14 +20,18 @@ st.set_page_config(
 )
 
 # Apply custom CSS from your utils
-apply_ui()
+try:
+    apply_ui()
+except Exception:
+    # Fallback if utils/ui.py has issues during initial deployment
+    st.warning("UI styles partially loaded.")
 
 # 3. Helper Functions
 def check_file_status(path):
     exists = os.path.exists(path)
     return "✅ Available" if exists else "❌ Missing"
 
-# Ensure directories exist to prevent write errors later
+# Ensure directories exist (Crucial for Streamlit Cloud file writing)
 for folder in ["dataset", "model", "output_reports"]:
     os.makedirs(os.path.join(BASE_DIR, folder), exist_ok=True)
 
@@ -63,24 +70,19 @@ with col_left:
 with col_right:
     st.markdown("## 🚀 Quick Start")
     if not os.path.exists(MODEL_PATH):
-        st.warning("⚠️ **Model Not Found!** \nPlease run the training script in your terminal/cell before using the Prediction or Analytics modules.")
+        st.error("⚠️ **Model Not Found!**")
+        st.markdown(f"""
+        The system cannot find the model at: 
+        `{MODEL_PATH}`
+        
+        Please ensure you have uploaded the `.pkl` files to the `model/` folder in your GitHub repository.
+        """)
     else:
         st.success("✨ **System Ready!** \nUse the sidebar to navigate through the modules.")
 
-# 7. Operational Commands
-st.markdown("### 💻 Development Commands")
-st.info("If you are running this in a Google Colab or Linux environment, use the following commands:")
-st.code(
-f"""# 1. Navigate to Project
-cd {BASE_DIR}
-
-# 2. Train the Machine Learning Model
-python train_model.py
-
-# 3. Launch the Application
-streamlit run app.py --server.port 8501""",
-language="bash"
-)
+# 7. Operational Information
+st.markdown("### 💻 Deployment Info")
+st.info(f"**Root Directory:** `{BASE_DIR}`")
 
 st.markdown("---")
 st.caption("MSc Project - Smart City Infrastructure & Data Science Framework © 2026")
